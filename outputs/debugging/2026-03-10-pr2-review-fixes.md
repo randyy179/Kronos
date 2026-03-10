@@ -33,8 +33,8 @@ rg -n "load_data_file|/api/load-data|/api/predict|file_path|load_data_files|resu
 
 ## Failures Encountered
 
-- Initial sandboxed `uv run pytest ...` failed because `uv` could not read its cache under `/Users/randy/.cache/uv/...`.
-- Re-ran the same test command with escalated permissions and it completed successfully.
+- Initial sandboxed `uv run pytest ...` failed because `uv` could not read its local cache due to a permission issue.
+- Re-ran the same test command with the required local permissions and it completed successfully.
 
 ## Conclusion
 

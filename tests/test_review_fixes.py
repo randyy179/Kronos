@@ -1,7 +1,12 @@
 from pathlib import Path
 
+import pytest
+
 from finetune.config import Config
-from webui.app import load_data_files, resolve_data_file_path
+
+webui_app = pytest.importorskip("webui.app")
+load_data_files = webui_app.load_data_files
+resolve_data_file_path = webui_app.resolve_data_file_path
 
 
 def test_config_to_dict_round_trip_preserves_derived_defaults():

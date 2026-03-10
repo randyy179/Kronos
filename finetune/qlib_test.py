@@ -325,6 +325,7 @@ def main():
         overrides["finetuned_predictor_path"] = args.model_path
 
     base_config = Config(config_file=args.config_file, overrides=overrides if overrides else None)
+    base_config.backtest_save_folder_name = validate_run_name(base_config.backtest_save_folder_name)
     run_config = {
         "config_obj": base_config,
         "device": args.device,
