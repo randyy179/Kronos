@@ -68,6 +68,10 @@ def main() -> None:
         help="Which window index to render as the representative plot.",
     )
     args = parser.parse_args()
+    if args.batch_size < 1:
+        raise ValueError("--batch-size must be at least 1.")
+    if args.plot_series < 0:
+        raise ValueError("--plot-series must be greater than or equal to 0.")
 
     spec = get_model_spec(args.model)
     device = detect_device()
@@ -86,6 +90,18 @@ def main() -> None:
 
     df = pd.read_csv(data_file)
     df["timestamps"] = pd.to_datetime(df["timestamps"])
+    max_windows = (len(df) - PRED_LEN) // LOOKBACK
+    if max_windows < 1:
+        raise ValueError(
+            f"Not enough rows in {data_file} for one window; need at least {LOOKBACK + PRED_LEN} rows."
+        )
+    if args.batch_size > max_windows:
+        raise ValueError(
+            f"--batch-size={args.batch_size} exceeds the available sequential windows ({max_windows}) for "
+            f"{len(df)} rows. Reduce the batch size or use a longer dataset."
+        )
+    if args.plot_series >= args.batch_size:
+        raise ValueError("--plot-series must be smaller than --batch-size.")
 
     df_list = []
     x_timestamp_list = []

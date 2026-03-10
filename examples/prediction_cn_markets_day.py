@@ -8,6 +8,7 @@ Two modes are supported:
 """
 
 import argparse
+import re
 import time
 from pathlib import Path
 
@@ -31,8 +32,14 @@ PRED_LEN = 120
 T = 1.0
 TOP_P = 0.9
 SAMPLE_COUNT = 1
-PLOT_COLUMNS = ["close"]
 METRIC_COLUMNS = ["open", "high", "low", "close"]
+
+
+def sanitize_artifact_token(value: str) -> str:
+    token = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-")
+    if not token:
+        raise ValueError("Symbol must contain at least one alphanumeric character for artifact naming.")
+    return token
 
 
 def load_data(symbol: str) -> pd.DataFrame:
@@ -182,7 +189,8 @@ def plot_result(
 def run_prediction(symbol: str, model_key: str, mode: str, as_of_date: str | None) -> None:
     spec = get_model_spec(model_key)
     device = detect_device()
-    prefix = f"pred_{symbol.replace('.', '_')}_{model_key}_{mode}"
+    safe_symbol = sanitize_artifact_token(symbol)
+    prefix = f"pred_{safe_symbol}_{model_key}_{mode}"
     csv_path = OUTPUT_ROOT / f"{prefix}_data.csv"
     plot_path = OUTPUT_ROOT / f"{prefix}_chart.png"
     summary_path = OUTPUT_ROOT / f"{prefix}_summary.json"

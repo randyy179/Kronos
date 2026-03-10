@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import pickle
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -37,6 +38,17 @@ def analysis_frame_to_dict(frame: pd.DataFrame) -> dict[str, float]:
     else:
         series = frame.iloc[:, 0]
     return {str(key): float(value) for key, value in series.items()}
+
+
+def validate_run_name(run_name: str) -> str:
+    cleaned = run_name.strip()
+    if not cleaned:
+        raise ValueError("Run name cannot be empty.")
+    if Path(cleaned).name != cleaned or ".." in Path(cleaned).parts:
+        raise ValueError("Run name must be a simple directory name without path traversal.")
+    if not re.fullmatch(r"[A-Za-z0-9._ -]+", cleaned):
+        raise ValueError("Run name may only contain letters, numbers, spaces, dots, underscores, and dashes.")
+    return cleaned
 
 
 class QlibTestDataset(Dataset):
@@ -306,7 +318,7 @@ def main():
 
     overrides = {}
     if args.run_name:
-        overrides["backtest_save_folder_name"] = args.run_name
+        overrides["backtest_save_folder_name"] = validate_run_name(args.run_name)
     if args.tokenizer_path:
         overrides["finetuned_tokenizer_path"] = args.tokenizer_path
     if args.model_path:

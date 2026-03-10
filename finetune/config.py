@@ -31,8 +31,8 @@ class Config:
         "epochs": 30,
         "log_interval": 100,
         "batch_size": 50,
-        "n_train_iter": 2000 * 50,
-        "n_val_iter": 400 * 50,
+        "n_train_iter": None,
+        "n_val_iter": None,
         "tokenizer_learning_rate": 2e-4,
         "predictor_learning_rate": 4e-5,
         "accumulation_steps": 1,
@@ -73,6 +73,8 @@ class Config:
             setattr(self, key, value)
         self._explicit_finetuned_tokenizer_path = False
         self._explicit_finetuned_predictor_path = False
+        self._explicit_n_train_iter = False
+        self._explicit_n_val_iter = False
 
         if config_file is not None:
             self.apply_overrides(self._load_config_file(config_file))
@@ -95,6 +97,10 @@ class Config:
                 self._explicit_finetuned_tokenizer_path = True
             if key == "finetuned_predictor_path":
                 self._explicit_finetuned_predictor_path = True
+            if key == "n_train_iter":
+                self._explicit_n_train_iter = value is not None
+            if key == "n_val_iter":
+                self._explicit_n_val_iter = value is not None
             setattr(self, key, copy.deepcopy(value))
         self._refresh_derived_fields()
 
@@ -106,14 +112,17 @@ class Config:
             self.finetuned_tokenizer_path = default_tokenizer_path
         if not self._explicit_finetuned_predictor_path:
             self.finetuned_predictor_path = default_predictor_path
+        if not self._explicit_n_train_iter:
+            self.n_train_iter = 2000 * self.batch_size
+        if not self._explicit_n_val_iter:
+            self.n_val_iter = 400 * self.batch_size
 
         self.backtest_benchmark = self._set_benchmark(self.instrument)
 
     def to_dict(self) -> dict:
         return {
-            key: copy.deepcopy(value)
-            for key, value in self.__dict__.items()
-            if not key.startswith("_")
+            key: copy.deepcopy(getattr(self, key))
+            for key in self.DEFAULTS
         }
 
     def _set_benchmark(self, instrument):
