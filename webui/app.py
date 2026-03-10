@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import json
@@ -12,7 +13,13 @@ import datetime
 warnings.filterwarnings('ignore')
 
 # Add project root directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ALLOWED_DATA_DIRS = (
+    PROJECT_ROOT / 'data',
+    PROJECT_ROOT / 'examples' / 'data',
+)
+SUPPORTED_DATA_SUFFIXES = {'.csv', '.feather'}
+sys.path.append(str(PROJECT_ROOT))
 
 try:
     from model import Kronos, KronosTokenizer, KronosPredictor
@@ -59,29 +66,60 @@ AVAILABLE_MODELS = {
 
 def load_data_files():
     """Scan data directory and return available data files"""
-    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
     data_files = []
-    
-    if os.path.exists(data_dir):
-        for file in os.listdir(data_dir):
-            if file.endswith(('.csv', '.feather')):
-                file_path = os.path.join(data_dir, file)
-                file_size = os.path.getsize(file_path)
+
+    for data_dir in ALLOWED_DATA_DIRS:
+        if not data_dir.exists():
+            continue
+        for file_path in sorted(data_dir.iterdir()):
+            if file_path.suffix.lower() in SUPPORTED_DATA_SUFFIXES and file_path.is_file():
+                file_size = file_path.stat().st_size
                 data_files.append({
-                    'name': file,
-                    'path': file_path,
+                    'name': file_path.name,
+                    'path': file_path.relative_to(PROJECT_ROOT).as_posix(),
+                    'source_dir': data_dir.relative_to(PROJECT_ROOT).as_posix(),
                     'size': f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
                 })
     
     return data_files
 
-def load_data_file(file_path):
+def _is_within_directory(path: Path, directory: Path) -> bool:
+    try:
+        path.relative_to(directory)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_data_file_path(file_reference: str) -> tuple[Path | None, str | None]:
+    """Resolve a user-supplied file reference to an allowed local data file."""
+    if not isinstance(file_reference, str) or not file_reference.strip():
+        return None, "File path cannot be empty"
+
+    candidate = Path(file_reference.strip()).expanduser()
+    resolved_path = candidate.resolve() if candidate.is_absolute() else (PROJECT_ROOT / candidate).resolve()
+
+    if resolved_path.suffix.lower() not in SUPPORTED_DATA_SUFFIXES:
+        return None, "Unsupported file format"
+    if not resolved_path.exists() or not resolved_path.is_file():
+        return None, "Data file not found"
+    if not any(_is_within_directory(resolved_path, allowed_dir.resolve()) for allowed_dir in ALLOWED_DATA_DIRS):
+        return None, "Data file must be located under the repository data directories"
+
+    return resolved_path, None
+
+
+def load_data_file(file_reference):
     """Load data file"""
     try:
-        if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path)
-        elif file_path.endswith('.feather'):
-            df = pd.read_feather(file_path)
+        resolved_path, error = resolve_data_file_path(file_reference)
+        if error:
+            return None, error
+
+        if resolved_path.suffix.lower() == '.csv':
+            df = pd.read_csv(resolved_path)
+        elif resolved_path.suffix.lower() == '.feather':
+            df = pd.read_feather(resolved_path)
         else:
             return None, "Unsupported file format"
         
@@ -122,7 +160,7 @@ def load_data_file(file_path):
     except Exception as e:
         return None, f"Failed to load file: {str(e)}"
 
-def save_prediction_results(file_path, prediction_type, prediction_results, actual_data, input_data, prediction_params):
+def save_prediction_results(file_reference, prediction_type, prediction_results, actual_data, input_data, prediction_params):
     """Save prediction results to file"""
     try:
         # Create prediction results directory
@@ -137,7 +175,7 @@ def save_prediction_results(file_path, prediction_type, prediction_results, actu
         # Prepare data for saving
         save_data = {
             'timestamp': datetime.datetime.now().isoformat(),
-            'file_path': file_path,
+            'file_path': file_reference,
             'prediction_type': prediction_type,
             'prediction_params': prediction_params,
             'input_data_summary': {
